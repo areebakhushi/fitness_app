@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "520842845240",
+    "project_id": "workoutplanner-fd17e",
+    "storage_bucket": "workoutplanner-fd17e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:520842845240:android:d627d52f0fd822624bdacd",
+        "android_client_info": {
+          "package_name": "com.example.workout_planner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAOdIIq7ned0a7UCnDKV5Yt_JcDdnkxIT0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
