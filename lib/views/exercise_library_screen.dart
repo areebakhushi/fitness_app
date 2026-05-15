@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/workout_viewmodel.dart';
+import '../viewmodels/auth_viewmodel.dart';
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 
@@ -17,6 +18,82 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _filterMuscleGroup = 'All';
   final List<String> _muscleGroups = ['All', 'Chest', 'Back', 'Legs', 'Shoulders', 'Arms', 'Core'];
+
+  void _showAddExerciseDialog() {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    String selectedMG = 'Chest';
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('NEW MOVEMENT', style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: _inputDeco('EXERCISE NAME'),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedMG,
+                  dropdownColor: AppTheme.surface,
+                  items: _muscleGroups.where((g) => g != 'All').map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                  onChanged: (v) => setDialogState(() => selectedMG = v!),
+                  decoration: _inputDeco('MUSCLE GROUP'),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: descController,
+                  maxLines: 3,
+                  decoration: _inputDeco('DESCRIPTION (OPTIONAL)'),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.isNotEmpty) {
+                  final authVM = Provider.of<AuthViewModel>(context, listen: false);
+                  final workoutVM = Provider.of<WorkoutViewModel>(context, listen: false);
+                  await workoutVM.addCustomExercise(
+                    authVM.user!.uid,
+                    nameController.text,
+                    selectedMG,
+                    descController.text,
+                  );
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.limeAccent, foregroundColor: Colors.black),
+              child: const Text('ADD', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDeco(String label) => InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
+    fillColor: Colors.white.withOpacity(0.05),
+    filled: true,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +110,12 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
         backgroundColor: Colors.transparent,
         title: Text('EXERCISE CLOUD', style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, fontSize: 14, letterSpacing: 2)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.plusCircle, color: AppTheme.limeAccent),
+            onPressed: _showAddExerciseDialog,
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -117,7 +200,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
               ),
             ],
           ),
-          if (ex.description != null) ...[
+          if (ex.description != null && ex.description!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(ex.description!, style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.4)),
           ],

@@ -8,7 +8,8 @@ import '../viewmodels/auth_viewmodel.dart';
 import '../theme/app_theme.dart';
 
 class AIScreen extends StatefulWidget {
-  const AIScreen({super.key});
+  final VoidCallback? onCommitSuccess;
+  const AIScreen({super.key, this.onCommitSuccess});
 
   @override
   State<AIScreen> createState() => _AIScreenState();
@@ -18,8 +19,26 @@ class _AIScreenState extends State<AIScreen> {
   final TextEditingController _goalController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
   final TextEditingController _heightController = TextEditingController();
+  final TextEditingController _timeframeController = TextEditingController(text: '90 days');
+  String _gender = 'Male';
   final List<String> _preferredDays = [];
   final List<String> _days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  bool _initialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      final authVM = Provider.of<AuthViewModel>(context, listen: false);
+      if (authVM.userProfile != null) {
+        _goalController.text = authVM.userProfile!.goal;
+        _weightController.text = authVM.userProfile!.weight.toString();
+        _heightController.text = authVM.userProfile!.height.toString();
+        _gender = authVM.userProfile!.gender;
+      }
+      _initialized = true;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,62 +46,146 @@ class _AIScreenState extends State<AIScreen> {
     final workoutVM = Provider.of<WorkoutViewModel>(context);
     final authVM = Provider.of<AuthViewModel>(context);
 
+    bool hasResults = aiVM.generatedPlans != null;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
+        leading: hasResults 
+            ? IconButton(
+                icon: const Icon(LucideIcons.chevronLeft), 
+                onPressed: aiVM.reset
+              ) 
+            : null,
         title: Text('AI ARCHITECT', style: GoogleFonts.inter(fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, fontSize: 14, letterSpacing: 2)),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (aiVM.generatedPlans == null) ...[
+            if (aiVM.errorMessage != null) ...[
+              _errorCard(aiVM.errorMessage!),
+              const SizedBox(height: 24),
+            ],
+            if (!hasResults) ...[
               _buildIntro(),
               const SizedBox(height: 32),
               _buildInputs(aiVM),
-              if (aiVM.errorMessage != null) ...[
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          aiVM.errorMessage!,
-                          style: const TextStyle(color: Colors.red, fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ] else ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('GENERATED PROTOCOLS', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                  TextButton(onPressed: aiVM.reset, child: const Text('RESET SYSTEM', style: TextStyle(color: AppTheme.limeAccent, fontSize: 10, fontWeight: FontWeight.bold))),
-                ],
-              ),
+              _buildGeneratedHeader(aiVM),
+              const SizedBox(height: 24),
+              _buildDietAndTips(aiVM),
+              const SizedBox(height: 32),
+              const Text('ARCHITECTED WORKOUTS', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
               const SizedBox(height: 16),
               ...List.generate(aiVM.generatedPlans!.length, (index) => _buildPlanCard(
                 aiVM.generatedPlans![index],
-                index,
-                aiVM,
-                authVM.user!.uid,
-                workoutVM,
               )),
+              const SizedBox(height: 40),
+              _CommitButton(
+                onCommit: () async {
+                  await aiVM.commitFullArchitecture(
+                    userId: authVM.user!.uid,
+                    profile: authVM.userProfile!,
+                    newGoal: _goalController.text,
+                    library: workoutVM.exercises,
+                    addRoutine: workoutVM.createRoutine,
+                    addCustomExercise: (name, mg, desc) => workoutVM.addCustomExercise(authVM.user!.uid, name, mg, desc),
+                    saveProfile: authVM.completeOnboarding,
+                    onSuccess: () {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Architecture committed to core system.'))
+                        );
+                        if (widget.onCommitSuccess != null) {
+                          widget.onCommitSuccess!();
+                        }
+                      }
+                    }
+                  );
+                },
+              ),
+              const SizedBox(height: 40),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildGeneratedHeader(AIViewModel vm) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text('PROTOCOL GENERATED', style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 2)),
+        TextButton(onPressed: vm.reset, child: const Text('NEW ANALYSIS', style: TextStyle(color: AppTheme.limeAccent, fontSize: 10, fontWeight: FontWeight.bold))),
+      ],
+    );
+  }
+
+  Widget _buildDietAndTips(AIViewModel vm) {
+    return Column(
+      children: [
+        if (vm.generatedDiet != null && vm.generatedDiet!.isNotEmpty)
+          _infoCard(LucideIcons.utensils, 'NUTRITION PROTOCOL', vm.generatedDiet!),
+        const SizedBox(height: 16),
+        if (vm.generatedTips != null && vm.generatedTips!.isNotEmpty)
+          _infoCard(LucideIcons.zap, 'TACTICAL STRATEGY', vm.generatedTips!),
+      ],
+    );
+  }
+
+  Widget _infoCard(IconData icon, String title, List<dynamic> items) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: AppTheme.limeAccent.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppTheme.limeAccent, size: 18),
+              const SizedBox(width: 12),
+              Text(title, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...items.map((item) => Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('• ', style: TextStyle(color: AppTheme.limeAccent, fontWeight: FontWeight.bold)),
+                Expanded(child: Text(item.toString(), style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4))),
+              ],
+            ),
+          )).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorCard(String msg) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 20),
+          const SizedBox(width: 12),
+          Expanded(child: Text(msg, style: const TextStyle(color: Colors.red, fontSize: 12))),
+        ],
       ),
     );
   }
@@ -102,7 +205,7 @@ class _AIScreenState extends State<AIScreen> {
         const SizedBox(height: 24),
         Text('Elite Bio-Sync.', style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic, letterSpacing: -1)),
         const Text(
-          'Input your biological parameters. The architect will synchronize a dedicated training protocol.',
+          'Synchronize your data to generate a dedicated training protocol.',
           textAlign: TextAlign.center,
           style: TextStyle(color: Colors.grey, height: 1.5, fontSize: 12),
         ),
@@ -118,7 +221,25 @@ class _AIScreenState extends State<AIScreen> {
         TextField(
           controller: _goalController,
           style: const TextStyle(color: Colors.white),
-          decoration: _inputDeco('e.g. Muscle hypertrophy with focus on upper body...'),
+          decoration: _inputDeco('e.g. Hypertrophy...'),
+        ),
+        const SizedBox(height: 20),
+        _label('TARGET TIMEFRAME (DAYS)'),
+        TextField(
+          controller: _timeframeController,
+          style: const TextStyle(color: Colors.white),
+          keyboardType: TextInputType.text,
+          decoration: _inputDeco('e.g. 90 days or 3 months'),
+        ),
+        const SizedBox(height: 20),
+        _label('GENDER'),
+        DropdownButtonFormField<String>(
+          value: _gender,
+          dropdownColor: AppTheme.surface,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+          decoration: _inputDeco(''),
+          items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+          onChanged: (val) => setState(() => _gender = val!),
         ),
         const SizedBox(height: 20),
         Row(
@@ -186,7 +307,9 @@ class _AIScreenState extends State<AIScreen> {
                 goal: _goalController.text,
                 weight: double.tryParse(_weightController.text) ?? 70,
                 height: double.tryParse(_heightController.text) ?? 170,
+                gender: _gender,
                 preferredDays: _preferredDays,
+                timeframe: _timeframeController.text,
               );
             },
             style: ElevatedButton.styleFrom(
@@ -222,9 +345,9 @@ class _AIScreenState extends State<AIScreen> {
     contentPadding: const EdgeInsets.all(20),
   );
 
-  Widget _buildPlanCard(dynamic plan, int idx, AIViewModel vm, String userId, WorkoutViewModel workoutVM) {
+  Widget _buildPlanCard(dynamic plan) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppTheme.surface,
@@ -252,46 +375,28 @@ class _AIScreenState extends State<AIScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           ...List.generate(plan['exercises'].length, (i) {
             final ex = plan['exercises'][i];
             return Padding(
-              padding: const EdgeInsets.only(bottom: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(ex['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white), overflow: TextOverflow.ellipsis),
-                            Text(ex['muscleGroup'].toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 10, letterSpacing: 1)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('${ex['sets']} x ${ex['reps']}', style: GoogleFonts.spaceMono(color: AppTheme.limeAccent, fontWeight: FontWeight.bold, fontSize: 16)),
-                    ],
-                  ),
-                  if (ex['description'] != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6.0),
-                      child: Text(ex['description'], style: const TextStyle(color: Colors.grey, fontSize: 11, height: 1.4)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(ex['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white), overflow: TextOverflow.ellipsis),
+                        Text(ex['muscleGroup'].toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 9, letterSpacing: 1)),
+                      ],
                     ),
+                  ),
+                  Text('${ex['sets']}x${ex['reps']}', style: GoogleFonts.spaceMono(color: AppTheme.limeAccent, fontWeight: FontWeight.bold, fontSize: 14)),
                 ],
               ),
             );
           }),
-          const SizedBox(height: 12),
-          _CommitButton(
-            plan: plan,
-            userId: userId,
-            workoutVM: workoutVM,
-            aiVM: vm,
-          ),
         ],
       ),
     );
@@ -299,12 +404,8 @@ class _AIScreenState extends State<AIScreen> {
 }
 
 class _CommitButton extends StatefulWidget {
-  final dynamic plan;
-  final String userId;
-  final WorkoutViewModel workoutVM;
-  final AIViewModel aiVM;
-
-  const _CommitButton({required this.plan, required this.userId, required this.workoutVM, required this.aiVM});
+  final Future<void> Function() onCommit;
+  const _CommitButton({required this.onCommit});
 
   @override
   State<_CommitButton> createState() => _CommitButtonState();
@@ -312,49 +413,28 @@ class _CommitButton extends StatefulWidget {
 
 class _CommitButtonState extends State<_CommitButton> {
   bool _isCommitting = false;
-  bool _isCommitted = false;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: TextButton(
-        onPressed: (_isCommitting || _isCommitted) ? null : () async {
+        onPressed: _isCommitting ? null : () async {
           setState(() => _isCommitting = true);
           try {
-            await widget.aiVM.commitRoutine(
-              plan: widget.plan,
-              userId: widget.userId,
-              library: widget.workoutVM.exercises,
-              addRoutine: widget.workoutVM.createRoutine,
-              addCustomExercise: (name, mg, desc) => widget.workoutVM.addCustomExercise(widget.userId, name, mg, desc),
-            );
-            setState(() => _isCommitted = true);
-          } catch (e) {
-            debugPrint('Commit Error: $e');
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error saving routine: $e')),
-            );
+            await widget.onCommit();
           } finally {
-            setState(() => _isCommitting = false);
+            if (mounted) setState(() => _isCommitting = false);
           }
         },
         style: TextButton.styleFrom(
-          backgroundColor: _isCommitted ? AppTheme.limeAccent : Colors.white.withOpacity(0.05),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppTheme.limeAccent,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         ),
         child: _isCommitting
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Text(
-          _isCommitted ? 'INTEGRATED' : 'COMMIT TO CORE',
-          style: TextStyle(
-              color: _isCommitted ? Colors.black : Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 10,
-              letterSpacing: 2
-          ),
-        ),
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.black))
+            : const Text('COMMIT ARCHITECTURE TO CORE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 2)),
       ),
     );
   }

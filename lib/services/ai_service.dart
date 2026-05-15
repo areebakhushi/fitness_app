@@ -1,92 +1,119 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
+import '../models/models.dart';
 
 class AIService {
-  late GenerativeModel _model;
   final String _apiKey;
 
-  AIService(this._apiKey) {
-    _model = _createModel('gemini-1.5-flash');
-  }
+  AIService(this._apiKey);
 
-  GenerativeModel _createModel(String modelName) {
-    return GenerativeModel(
-      model: modelName,
-      apiKey: _apiKey,
-      safetySettings: [
-        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.none),
-      ],
-    );
-  }
-
-  Future<List<dynamic>> generateWorkoutPlan({
+  Future<Map<String, dynamic>> generateWorkoutPlan({
     required String goal,
     required double weight,
     required double height,
+    required String gender,
     required List<String> preferredDays,
+    required String timeframe,
   }) async {
-    if (preferredDays.isEmpty) {
-      throw Exception('Please select at least one workout day.');
-    }
+    if (preferredDays.isEmpty) throw Exception('Please select training days.');
 
     final prompt = '''
-    Generate a personalized weekly workout plan for an athlete:
-    - Goal: $goal
-    - Weight: $weight kg
-    - Height: $height cm
-    - Preferred Workout Days: ${preferredDays.join(', ')}
+    As an elite fitness architect, generate a personalized training and nutrition protocol.
+    CRITICAL: Adhere strictly to the objective: $goal. 
+    Scale for athlete: $gender, $weight kg, $height cm. Timeframe: $timeframe.
 
-    Return a JSON array where each object has "day", "routineName", and "exercises" (an array of objects with "name", "description", "sets", "reps", "muscleGroup").
-    Return ONLY the raw JSON array. Do not include markdown formatting.
+    Return ONLY raw JSON with these exact keys:
+    {
+      "plans": [{"day": "...", "routineName": "...", "exercises": [{"name": "...", "sets": 3, "reps": 10, "muscleGroup": "..."}]}],
+      "diet": ["suggestion 1", "suggestion 2"],
+      "tips": ["tip 1", "tip 2"]
+    }
     ''';
 
     try {
-      return await _generate(prompt);
+      final result = await _generate(prompt);
+      if (result != null && result['plans'] != null) return result;
+      throw Exception('Invalid AI Response');
     } catch (e) {
-      debugPrint('Initial AI Error: $e');
-      // If the model is not found, try falling back to the most stable Pro model
-      if (e.toString().contains('not found') || e.toString().contains('supported')) {
-        try {
-          _model = _createModel('gemini-pro');
-          return await _generate(prompt);
-        } catch (fallbackError) {
-          debugPrint('Fallback AI Error: $fallbackError');
-          return _getFallbackPlan(preferredDays);
+      debugPrint('AI Gen Error: $e');
+      return {
+        'plans': _getFallbackPlan(preferredDays, goal),
+        'diet': ['High protein intake', 'Stay hydrated'],
+        'tips': ['Prioritize form', '7-8h sleep']
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> getInsights({
+    required UserProfile profile,
+    required List<WorkoutLog> logs,
+  }) async {
+    final summary = logs.take(5).map((l) => {'date': l.completedAt.toIso8601String(), 'routine': l.routineName}).toList();
+
+    final prompt = '''
+    As AI Fitness Analyst, provide neural feedback for: ${profile.goal}.
+    Data: ${jsonEncode(summary)}
+
+    Return JSON:
+    {
+      "smartInsight": "...", "plateauStatus": "...", "personalizedSuggestion": "...",
+      "injuryAlert": "...", "dailyTip": "...", "dietInsight": "..."
+    }
+    ''';
+
+    try {
+      final response = await _generate(prompt);
+      if (response != null) return response;
+    } catch (_) {}
+
+    return {
+      "smartInsight": "System active. Analyzing data...",
+      "plateauStatus": "Progression is optimal.",
+      "personalizedSuggestion": "Focus on eccentric control today.",
+      "injuryAlert": "No immediate risks.",
+      "dailyTip": "Consistency is the key to architecture.",
+      "dietInsight": "Maintain nutrient timing post-workout."
+    };
+  }
+
+  Future<dynamic> _generate(String prompt) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+        headers: {
+          'Authorization': 'Bearer $_apiKey',
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://fitgenie.app',
+        },
+        body: jsonEncode({
+          'model': 'nvidia/nemotron-3-nano-30b-a3b:free',
+          'messages': [
+            {'role': 'system', 'content': 'You are a professional fitness architect. Respond ONLY with raw JSON.'},
+            {'role': 'user', 'content': prompt}
+          ],
+          'temperature': 0.7,
+        }),
+      ).timeout(const Duration(seconds: 45));
+
+      if (response.statusCode == 200) {
+        String text = jsonDecode(response.body)['choices'][0]['message']['content'];
+        
+        // Smart JSON Extraction (Fixes the "Commit" issue)
+        final start = text.indexOf('{');
+        final end = text.lastIndexOf('}') + 1;
+        if (start != -1 && end > start) {
+          return jsonDecode(text.substring(start, end));
         }
       }
-      return _getFallbackPlan(preferredDays);
+    } catch (e) {
+      debugPrint('AI Engine Exception: $e');
     }
+    return null;
   }
 
-  Future<List<dynamic>> _generate(String prompt) async {
-    final response = await _model.generateContent([Content.text(prompt)]);
-    String text = response.text ?? '[]';
-    
-    // Clean JSON formatting
-    if (text.contains('```')) {
-      final start = text.indexOf('[');
-      final end = text.lastIndexOf(']') + 1;
-      if (start != -1 && end != -1) {
-        text = text.substring(start, end);
-      }
-    }
-    
-    final decoded = jsonDecode(text);
-    return decoded is List ? decoded : [];
-  }
-
-  List<dynamic> _getFallbackPlan(List<String> days) {
-    return days.map((day) => {
-      "day": day,
-      "routineName": "Standard Protocol",
-      "exercises": [
-        {"name": "Push Ups", "description": "Chest focus", "sets": 3, "reps": 15, "muscleGroup": "Chest"},
-        {"name": "Squats", "description": "Lower body", "sets": 3, "reps": 20, "muscleGroup": "Legs"}
-      ]
-    }).toList();
+  List<dynamic> _getFallbackPlan(List<String> days, String goal) {
+    return days.map((day) => {"day": day, "routineName": "Core Routine", "exercises": [{"name": "Compound Lift", "sets": 3, "reps": 10, "muscleGroup": "Full Body"}]}).toList();
   }
 }

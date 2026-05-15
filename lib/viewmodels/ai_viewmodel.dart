@@ -4,24 +4,49 @@ import '../models/models.dart';
 
 class AIViewModel extends ChangeNotifier {
   AIService? _aiService;
-  List<dynamic>? _generatedPlans;
+  Map<String, dynamic>? _generatedResponse;
   bool _isLoading = false;
   String? _errorMessage;
 
-  List<dynamic>? get generatedPlans => _generatedPlans;
+  Map<String, dynamic>? _insights;
+  bool _isFetchingInsights = false;
+
+  List<dynamic>? get generatedPlans => _generatedResponse?['plans'];
+  List<dynamic>? get generatedDiet => _generatedResponse?['diet'];
+  List<dynamic>? get generatedTips => _generatedResponse?['tips'];
+
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  Map<String, dynamic>? get insights => _insights;
+  bool get isFetchingInsights => _isFetchingInsights;
 
   void init(String apiKey) {
     if (_aiService != null) return;
     _aiService = AIService(apiKey);
   }
 
+  Future<void> fetchInsights(UserProfile profile, List<WorkoutLog> logs) async {
+    if (_aiService == null) return;
+    _isFetchingInsights = true;
+    notifyListeners();
+
+    try {
+      _insights = await _aiService!.getInsights(profile: profile, logs: logs);
+    } catch (e) {
+      debugPrint('Error fetching insights: $e');
+    } finally {
+      _isFetchingInsights = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> generatePlan({
     required String goal,
     required double weight,
     required double height,
+    required String gender,
     required List<String> preferredDays,
+    required String timeframe,
   }) async {
     if (_aiService == null) return;
     if (preferredDays.isEmpty) {
@@ -31,69 +56,136 @@ class AIViewModel extends ChangeNotifier {
     }
 
     _isLoading = true;
-    _generatedPlans = null;
+    _generatedResponse = null;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _generatedPlans = await _aiService!.generateWorkoutPlan(
+      _generatedResponse = await _aiService!.generateWorkoutPlan(
         goal: goal,
         weight: weight,
         height: height,
+        gender: gender,
         preferredDays: preferredDays,
+        timeframe: timeframe,
       );
     } catch (e) {
-      _errorMessage = e.toString().contains('API_KEY_INVALID') 
-          ? 'Invalid API Key. Please check your Google AI Studio key.'
-          : 'AI Error: $e';
-      debugPrint('AI Generation Error: $e');
+      _errorMessage = 'AI Engine Error: $e';
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> commitRoutine({
-    required dynamic plan,
+  Future<void> commitFullArchitecture({
     required String userId,
+    required UserProfile profile,
+    required String newGoal,
     required List<Exercise> library,
     required Function(String, String, String, List<RoutineExercise>) addRoutine,
     required Future<String> Function(String, String, String) addCustomExercise,
+    required Future<void> Function(UserProfile) saveProfile,
+    required VoidCallback onSuccess,
   }) async {
-    final List<RoutineExercise> routineExercises = [];
+    if (_generatedResponse == null || generatedPlans == null) {
+      _errorMessage = 'No architecture found to commit.';
+      notifyListeners();
+      return;
+    }
 
-    for (var ex in plan['exercises']) {
-      final match = library.firstWhere(
-            (e) => e.name.toLowerCase() == ex['name'].toString().toLowerCase(),
-        orElse: () => Exercise(id: '', name: '', muscleGroup: ''),
-      );
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
 
-      String exerciseId = match.id;
-      if (exerciseId.isEmpty) {
-        exerciseId = await addCustomExercise(
-          ex['name'].toString(),
-          ex['muscleGroup'].toString(),
-          ex['description']?.toString() ?? '',
+    try {
+      // 1. Process and save each routine
+      for (var plan in generatedPlans!) {
+        final List<RoutineExercise> routineExercises = [];
+        final List<dynamic> exercisesData = plan['exercises'] ?? [];
+
+        for (var ex in exercisesData) {
+          final String exName = ex['name']?.toString() ?? 'Unnamed Movement';
+          final String muscleGroup = ex['muscleGroup']?.toString() ?? 'General';
+          final String description = ex['description']?.toString() ?? '';
+
+          // Match against existing exercise library
+          final match = library.firstWhere(
+                (e) => e.name.toLowerCase() == exName.toLowerCase(),
+            orElse: () => Exercise(
+              id: '',
+              name: '',
+              muscleGroup: '',
+              description: '',
+            ),
+          );
+
+          // If not found in library, create a custom exercise
+          String exerciseId = match.id;
+          if (exerciseId.isEmpty) {
+            try {
+              exerciseId = await addCustomExercise(exName, muscleGroup, description);
+            } catch (e) {
+              debugPrint('Failed to add custom exercise: $e');
+              exerciseId = exName; // fallback to name as id
+            }
+          }
+
+          // Safely parse sets and reps
+          int sets = int.tryParse(ex['sets']?.toString() ?? '3') ?? 3;
+          int reps = int.tryParse(ex['reps']?.toString() ?? '10') ?? 10;
+
+          routineExercises.add(RoutineExercise(
+            exerciseId: exerciseId,
+            sets: sets,
+            reps: reps,
+          ));
+        }
+
+        // Save this day's routine
+        await addRoutine(
+          userId,
+          plan['routineName']?.toString() ?? 'AI Routine',
+          plan['day']?.toString() ?? 'Monday',
+          routineExercises,
         );
       }
 
-      routineExercises.add(RoutineExercise(
-        exerciseId: exerciseId,
-        sets: (ex['sets'] as num).toInt(),
-        reps: (ex['reps'] as num).toInt(),
-      ));
-    }
+      // 2. Update user profile with new goal, diet and tips
+      final updatedProfile = UserProfile(
+        uid: profile.uid,
+        name: profile.name,
+        weight: profile.weight,
+        height: profile.height,
+        goal: newGoal,
+        gender: profile.gender,
+        streak: profile.streak,
+        achievements: profile.achievements,
+        diet: List<String>.from(generatedDiet ?? []),
+        tips: List<String>.from(generatedTips ?? []),
+        onboardingCompleted: true,
+      );
 
-    await addRoutine(
-      userId,
-      plan['routineName'].toString(),
-      plan['day'].toString(),
-      routineExercises,
-    );
+      await saveProfile(updatedProfile);
+
+      // 3. Clear generated data
+      _generatedResponse = null;
+      _errorMessage = null;
+      _isLoading = false;
+      notifyListeners();
+
+      // 4. Call success AFTER notifyListeners so UI is stable
+      onSuccess();
+
+    } catch (e) {
+      _errorMessage = 'Commit Error: ${e.toString().replaceFirst('Exception: ', '')}';
+      debugPrint('Architecture Commit Error: $e');
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   void reset() {
-    _generatedPlans = null;
+    _generatedResponse = null;
     _errorMessage = null;
     notifyListeners();
   }
