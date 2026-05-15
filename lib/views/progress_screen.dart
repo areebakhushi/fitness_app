@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
@@ -25,7 +24,7 @@ class ProgressScreen extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'Weight (kg)',
             labelStyle: const TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withValues(alpha:0.1))),
             focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.limeAccent)),
           ),
         ),
@@ -54,7 +53,6 @@ class ProgressScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final workoutVM = Provider.of<WorkoutViewModel>(context);
     final authVM = Provider.of<AuthViewModel>(context);
-    final profile = authVM.userProfile;
 
     // Logic for today's tasks
     final today = DateFormat('EEEE').format(DateTime.now());
@@ -114,7 +112,7 @@ class ProgressScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.05)),
       ),
       child: Table(
         columnWidths: const {
@@ -124,7 +122,7 @@ class ProgressScreen extends StatelessWidget {
         children: [
           TableRow(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha:0.05),
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
             ),
             children: [
@@ -178,7 +176,7 @@ class ProgressScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(40),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.05)),
       ),
       child: Column(
         children: [
@@ -274,7 +272,7 @@ class ProgressScreen extends StatelessWidget {
               barWidth: 3,
               dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
-                  show: true, color: AppTheme.limeAccent.withOpacity(0.1)),
+                  show: true, color: AppTheme.limeAccent.withValues(alpha:0.1)),
             ),
           ],
         ),

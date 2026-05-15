@@ -7,7 +7,13 @@ class Exercise {
   final String? description;
   final bool isCustom;
 
-  Exercise({required this.id, required this.name, required this.muscleGroup, this.description, this.isCustom = false});
+  Exercise({
+    required this.id, 
+    required this.name, 
+    required this.muscleGroup, 
+    this.description, 
+    this.isCustom = false
+  });
 
   factory Exercise.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map? ?? {};

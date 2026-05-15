@@ -155,7 +155,7 @@ class _CreateRoutineScreenState extends State<CreateRoutineScreen> {
     return Container(
       height: 300,
       decoration: BoxDecoration(
-        color: AppTheme.surface.withOpacity(0.5),
+        color: AppTheme.surface.withValues(alpha:0.5),
         borderRadius: BorderRadius.circular(32),
       ),
       child: ListView.builder(

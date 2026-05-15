@@ -90,7 +90,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
   InputDecoration _inputDeco(String label) => InputDecoration(
     labelText: label,
     labelStyle: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
-    fillColor: Colors.white.withOpacity(0.05),
+    fillColor: Colors.white.withValues(alpha:0.05),
     filled: true,
     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
   );
@@ -184,7 +184,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +195,7 @@ class _ExerciseLibraryScreenState extends State<ExerciseLibraryScreen> {
               Text(ex.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontStyle: FontStyle.italic)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha:0.05), borderRadius: BorderRadius.circular(10)),
                 child: Text(ex.muscleGroup.toUpperCase(), style: const TextStyle(color: AppTheme.limeAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
               ),
             ],

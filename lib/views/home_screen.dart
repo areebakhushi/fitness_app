@@ -59,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
       decoration: BoxDecoration(
         color: const Color(0xFF0A0A0A),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+        border: Border(top: BorderSide(color: Colors.white.withValues(alpha:0.05))),
       ),
       child: SafeArea(
         child: Row(
@@ -186,7 +186,7 @@ class _HomeContentState extends State<HomeContent> {
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha:0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,7 +236,7 @@ class _HomeContentState extends State<HomeContent> {
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: AppTheme.limeAccent.withOpacity(0.15)),
+            border: Border.all(color: AppTheme.limeAccent.withValues(alpha:0.15)),
           ),
           child: Column(
             children: [
@@ -267,8 +267,8 @@ class _HomeContentState extends State<HomeContent> {
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
               color: isWarning
-                  ? Colors.orangeAccent.withOpacity(0.1)
-                  : AppTheme.limeAccent.withOpacity(0.1),
+                  ? Colors.orangeAccent.withValues(alpha:0.1)
+                  : AppTheme.limeAccent.withValues(alpha:0.1),
               borderRadius: BorderRadius.circular(10)),
           child: Icon(icon,
               color: isWarning ? Colors.orangeAccent : AppTheme.limeAccent, size: 16),

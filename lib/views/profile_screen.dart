@@ -21,7 +21,7 @@ class ProfileScreen extends StatelessWidget {
           decoration: InputDecoration(
             labelText: 'New Password',
             labelStyle: const TextStyle(color: Colors.grey),
-            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white.withValues(alpha:0.1))),
             focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.limeAccent)),
           ),
         ),
@@ -151,7 +151,7 @@ class ProfileScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppTheme.surface,
             borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
+            border: Border.all(color: Colors.white.withValues(alpha:0.05)),
           ),
           child: Column(children: items),
         ),

@@ -106,11 +106,11 @@ class AIViewModel extends ChangeNotifier {
         for (var ex in exercisesData) {
           final String exName = ex['name']?.toString() ?? 'Unnamed Movement';
           final String muscleGroup = ex['muscleGroup']?.toString() ?? 'General';
-          final String description = ex['description']?.toString() ?? '';
+          final String description = ex['description']?.toString() ?? 'No description provided.';
 
           // Match against existing exercise library
           final match = library.firstWhere(
-                (e) => e.name.toLowerCase() == exName.toLowerCase(),
+            (e) => e.name.toLowerCase() == exName.toLowerCase(),
             orElse: () => Exercise(
               id: '',
               name: '',
@@ -125,12 +125,12 @@ class AIViewModel extends ChangeNotifier {
             try {
               exerciseId = await addCustomExercise(exName, muscleGroup, description);
             } catch (e) {
-              debugPrint('Failed to add custom exercise: $e');
-              exerciseId = exName; // fallback to name as id
+              debugPrint('Failed to add custom exercise: $exName, error: $e');
+              exerciseId = exName; // fallback
             }
           }
 
-          // Safely parse sets and reps
+          // Robust parsing of sets and reps
           int sets = int.tryParse(ex['sets']?.toString() ?? '3') ?? 3;
           int reps = int.tryParse(ex['reps']?.toString() ?? '10') ?? 10;
 
@@ -141,16 +141,17 @@ class AIViewModel extends ChangeNotifier {
           ));
         }
 
-        // Save this day's routine
-        await addRoutine(
-          userId,
-          plan['routineName']?.toString() ?? 'AI Routine',
-          plan['day']?.toString() ?? 'Monday',
-          routineExercises,
-        );
+        if (routineExercises.isNotEmpty) {
+          await addRoutine(
+            userId,
+            plan['routineName']?.toString() ?? 'AI Routine',
+            plan['day']?.toString() ?? 'Monday',
+            routineExercises,
+          );
+        }
       }
 
-      // 2. Update user profile with new goal, diet and tips
+      // 2. Update user profile with architecture metadata
       final updatedProfile = UserProfile(
         uid: profile.uid,
         name: profile.name,
@@ -160,26 +161,22 @@ class AIViewModel extends ChangeNotifier {
         gender: profile.gender,
         streak: profile.streak,
         achievements: profile.achievements,
-        diet: List<String>.from(generatedDiet ?? []),
-        tips: List<String>.from(generatedTips ?? []),
+        diet: List<String>.from(generatedDiet ?? profile.diet),
+        tips: List<String>.from(generatedTips ?? profile.tips),
         onboardingCompleted: true,
       );
-
+      
       await saveProfile(updatedProfile);
 
-      // 3. Clear generated data
+      // 3. Clear generated data and notify success
       _generatedResponse = null;
-      _errorMessage = null;
       _isLoading = false;
       notifyListeners();
-
-      // 4. Call success AFTER notifyListeners so UI is stable
       onSuccess();
-
     } catch (e) {
-      _errorMessage = 'Commit Error: ${e.toString().replaceFirst('Exception: ', '')}';
-      debugPrint('Architecture Commit Error: $e');
+      _errorMessage = 'Commit Failed: ${e.toString().replaceFirst('Exception: ', '')}';
       _isLoading = false;
+      debugPrint('Architecture Commit Error: $e');
       notifyListeners();
     }
   }
